@@ -1,7 +1,21 @@
+import type {
+  Bucket,
+  GetObjectCommandOutput,
+  S3ServiceException,
+  _Object,
+} from "@aws-sdk/client-s3";
 import type { z } from "zod";
 
 /**
- * Helper type to infer the parameter types from Zod schemas
+ * S3 Object data with content type
+ */
+export interface S3ObjectData {
+  data: string | Uint8Array;
+  contentType: string;
+}
+
+/**
+ * Helper type to infer parameters from zod schema
  */
 export type InferZodParams<T extends Record<string, z.ZodType>> = {
   [K in keyof T]: z.infer<T[K]>;
@@ -15,17 +29,14 @@ export interface IMCPTool<TParams extends Record<string, z.ZodType> = Record<str
    * Tool name
    */
   readonly name: string;
-
   /**
    * Tool description
    */
   readonly description: string;
-
   /**
    * Parameter definitions
    */
   readonly parameters: TParams;
-
   /**
    * Execute the tool
    * @param args Parameters
@@ -41,10 +52,5 @@ export interface IMCPTool<TParams extends Record<string, z.ZodType> = Record<str
   }>;
 }
 
-/**
- * Data returned from S3 operations
- */
-export interface S3ObjectData {
-  data: Buffer | string;
-  contentType: string;
-}
+// Re-export types from AWS SDK
+export type { Bucket, GetObjectCommandOutput, _Object, S3ServiceException };

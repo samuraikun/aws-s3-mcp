@@ -1,6 +1,6 @@
-import { createErrorResponse } from "../helpers/createErrorResponse.js";
-import type { S3Resource } from "../resources/s3.js";
-import type { IMCPTool } from "../types.js";
+import { createErrorResponse } from "../helpers/createErrorResponse.ts";
+import type { S3Resource } from "../resources/s3.ts";
+import type { IMCPTool } from "../types.ts";
 
 /**
  * List available S3 buckets

@@ -4,9 +4,10 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["test/**/*.test.ts"],
+    exclude: ["test/deno/**/*.test.ts"],
     coverage: {
       reporter: ["text", "json", "html"],
-      exclude: ["node_modules/"],
+      exclude: ["node_modules/", "test/deno/"],
     },
     // environmentOptions: {
     //   // MinIO
@@ -19,6 +20,6 @@ export default defineConfig({
     //     S3_BUCKETS: 'test-bucket-1,test-bucket-2',
     //   },
     // },
-    // setupFiles: ['./test/setup.ts'],
+    setupFiles: ["./test/setup-deno-mock.js", "./test/setup.ts"],
   },
 });

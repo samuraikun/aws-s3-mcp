@@ -134,3 +134,10 @@ dist
 .yarn/build-state.yml
 .yarn/install-state.gz
 .pnp.*
+
+# Deno specific
+.deno/
+deno-cache/
+*.deno.lock
+*.bundle.js
+.DS_Store

@@ -1,8 +1,8 @@
-import type { S3Resource } from "../resources/s3.js";
-import type { IMCPTool } from "../types.js";
-import { GetObjectTool } from "./getObject.js";
-import { ListBucketsTool } from "./listBuckets.js";
-import { ListObjectsTool } from "./listObjects.js";
+import type { S3Resource } from "../resources/s3.ts";
+import type { IMCPTool } from "../types.ts";
+import { GetObjectTool } from "./getObject.ts";
+import { ListBucketsTool } from "./listBuckets.ts";
+import { ListObjectsTool } from "./listObjects.ts";
 
 /**
  * Create all tool instances

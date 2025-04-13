@@ -1,5 +1,3 @@
-import { Readable } from "node:stream";
-import type { Bucket, S3ClientConfig, _Object } from "@aws-sdk/client-s3";
 import {
   GetObjectCommand,
   ListBucketsCommand,
@@ -8,7 +6,7 @@ import {
 } from "@aws-sdk/client-s3";
 import pdfParse from "pdf-parse";
 import { P, match } from "ts-pattern";
-import type { S3ObjectData } from "../types";
+import type { S3ObjectData, _Object } from "../types.ts";
 
 export class S3Resource {
   private client: S3Client;
@@ -17,25 +15,33 @@ export class S3Resource {
 
   constructor(region = "us-east-1", maxBuckets?: number) {
     // S3 client configuration options
-    const clientOptions: S3ClientConfig = {
-      region: process.env.AWS_REGION || region,
+    const clientOptions: {
+      region: string;
+      credentials?: {
+        accessKeyId: string;
+        secretAccessKey: string;
+      };
+      endpoint?: string;
+      forcePathStyle?: boolean;
+    } = {
+      region: Deno.env.get("AWS_REGION") || region,
     };
 
     // Set credentials if provided in environment variables
-    if (process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY) {
+    if (Deno.env.get("AWS_ACCESS_KEY_ID") && Deno.env.get("AWS_SECRET_ACCESS_KEY")) {
       clientOptions.credentials = {
-        accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+        accessKeyId: Deno.env.get("AWS_ACCESS_KEY_ID") || "",
+        secretAccessKey: Deno.env.get("AWS_SECRET_ACCESS_KEY") || "",
       };
     }
 
     // Custom endpoint configuration for MinIO
-    if (process.env.AWS_ENDPOINT) {
-      clientOptions.endpoint = process.env.AWS_ENDPOINT;
+    if (Deno.env.get("AWS_ENDPOINT")) {
+      clientOptions.endpoint = Deno.env.get("AWS_ENDPOINT");
     }
 
     // Path style URL setting (required for MinIO)
-    if (process.env.AWS_S3_FORCE_PATH_STYLE === "true") {
+    if (Deno.env.get("AWS_S3_FORCE_PATH_STYLE") === "true") {
       clientOptions.forcePathStyle = true;
     }
 
@@ -45,7 +51,7 @@ export class S3Resource {
     if (maxBuckets !== undefined) {
       this.maxBuckets = maxBuckets;
     } else {
-      const envMaxBuckets = process.env.S3_MAX_BUCKETS;
+      const envMaxBuckets = Deno.env.get("S3_MAX_BUCKETS");
       this.maxBuckets = envMaxBuckets ? Number.parseInt(envMaxBuckets, 10) : 5;
     }
 
@@ -54,20 +60,20 @@ export class S3Resource {
 
   private getConfiguredBuckets(): string[] {
     // Get bucket information from environment variables
-    const bucketsEnv = process.env.S3_BUCKETS || "";
-    return bucketsEnv.split(",").filter((bucket) => bucket.trim() !== "");
+    const bucketsEnv = Deno.env.get("S3_BUCKETS") || "";
+    return bucketsEnv.split(",").filter((bucket: string) => bucket.trim() !== "");
   }
 
   private logError(message: string, error: unknown): void {
-    // Skip logging in test environments or when NODE_ENV is test
-    if (process.env.NODE_ENV === "test" || process.env.VITEST) {
+    // Skip logging in test environments
+    if (Deno.env.get("DENO_ENV") === "test") {
       return;
     }
     console.error(message, error);
   }
 
   // List all buckets or filtered buckets based on configuration
-  async listBuckets(): Promise<Bucket[]> {
+  async listBuckets() {
     try {
       const command = new ListBucketsCommand({});
       const response = await this.client.send(command);
@@ -136,17 +142,22 @@ export class S3Resource {
       const response = await this.client.send(command);
       const contentType = response.ContentType || "application/octet-stream";
 
-      // Check if response body is a readable stream
-      if (!(response.Body instanceof Readable)) {
+      // Handle the response body based on environment (Node.js vs Deno)
+      let bodyContents: Uint8Array;
+
+      if (response.Body?.transformToByteArray) {
+        // Deno environment
+        bodyContents = await response.Body.transformToByteArray();
+      } else if (response.Body && this.isNodeJsReadableStream(response.Body)) {
+        // Node.js environment (stream)
+        bodyContents = await this.streamToBuffer(response.Body as any);
+      } else {
         throw new Error("Unexpected response body type");
       }
 
-      // Handle the response body as a stream
-      const chunks: Buffer[] = [];
-      for await (const chunk of response.Body) {
-        chunks.push(Buffer.from(chunk));
+      if (!bodyContents) {
+        throw new Error("Empty response body");
       }
-      const data = Buffer.concat(chunks);
 
       // Use pattern matching to determine file type and return appropriate data
       return match({
@@ -154,17 +165,29 @@ export class S3Resource {
         isPdf: this.isPdfFile(key, contentType),
       })
         .with({ isText: true }, async () => ({
-          data: data.toString("utf-8"),
+          data: new TextDecoder().decode(bodyContents),
           contentType,
         }))
         .with({ isPdf: true }, async () => ({
-          data: await this.convertPdfToText(data),
+          data: await this.convertPdfToText(bodyContents),
           contentType,
         }))
-        .otherwise(() => ({
-          data,
-          contentType,
-        }));
+        .otherwise(() => {
+          // For binary data, convert to Buffer if we're in Node.js environment
+          const isNodeEnvironment =
+            typeof process !== "undefined" && process.versions && process.versions.node;
+
+          // Use Buffer only in Node.js environment
+          const data = isNodeEnvironment
+            ? // @ts-ignore: Node.js Buffer
+              Buffer.from(bodyContents)
+            : bodyContents;
+
+          return {
+            data,
+            contentType,
+          };
+        });
     } catch (error) {
       this.logError(`Error getting object ${key} from bucket ${bucketName}:`, error);
       throw error;
@@ -232,13 +255,62 @@ export class S3Resource {
   }
 
   // Convert PDF buffer to text
-  async convertPdfToText(buffer: Buffer): Promise<string> {
+  async convertPdfToText(buffer: Uint8Array): Promise<string> {
     try {
+      // @ts-ignore: pdf-parse types are not fully compatible with Deno
       const data = await pdfParse(buffer);
       return data.text;
     } catch (error) {
       this.logError("Error converting PDF to text:", error);
       return "Error: Could not extract text from PDF file.";
     }
+  }
+
+  // Helper method to check if an object is a Node.js Readable stream
+  private isNodeJsReadableStream(obj: unknown): boolean {
+    return (
+      obj !== null &&
+      typeof obj === "object" &&
+      // Check for common stream properties
+
+      // @ts-ignore: Node.js stream specific properties
+      (typeof obj.pipe === "function" ||
+        // @ts-ignore: Node.js stream specific properties
+        typeof obj.on === "function" ||
+        // @ts-ignore: Node.js stream specific properties
+        typeof obj.read === "function")
+    );
+  }
+
+  // Helper method to convert a Node.js stream to a buffer
+  private async streamToBuffer(stream: any): Promise<Uint8Array> {
+    return new Promise((resolve, reject) => {
+      const chunks: Array<Uint8Array> = [];
+
+      // @ts-ignore: Node.js stream methods
+      stream.on("data", (chunk: Uint8Array) => {
+        chunks.push(chunk);
+      });
+
+      // @ts-ignore: Node.js stream methods
+      stream.on("error", (err: Error) => {
+        reject(err);
+      });
+
+      // @ts-ignore: Node.js stream methods
+      stream.on("end", () => {
+        // Combine chunks into a single Uint8Array
+        const totalLength = chunks.reduce((acc, chunk) => acc + chunk.length, 0);
+        const result = new Uint8Array(totalLength);
+
+        let offset = 0;
+        for (const chunk of chunks) {
+          result.set(chunk, offset);
+          offset += chunk.length;
+        }
+
+        resolve(result);
+      });
+    });
   }
 }

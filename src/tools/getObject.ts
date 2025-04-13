@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { createErrorResponse } from "../helpers/createErrorResponse.js";
-import type { S3Resource } from "../resources/s3.js";
-import type { IMCPTool, InferZodParams } from "../types.js";
+import { createErrorResponse } from "../helpers/createErrorResponse.ts";
+import type { S3Resource } from "../resources/s3.ts";
+import type { IMCPTool, InferZodParams } from "../types.ts";
 
 /**
  * Retrieve an object from an S3 bucket
@@ -58,12 +58,16 @@ export class GetObjectTool implements IMCPTool {
         };
       }
 
-      // For binary content, return as base64-encoded string
+      // For binary content, convert Uint8Array to base64-encoded string
+      const base64Data = btoa(
+        String.fromCharCode.apply(null, Array.from(new Uint8Array(result.data))),
+      );
+
       return {
         content: [
           {
             type: "text" as const,
-            text: `Binary content (${result.contentType}): base64 data is ${result.data.toString("base64").substring(0, 100)}...`,
+            text: `Binary content (${result.contentType}): base64 data is ${base64Data.substring(0, 100)}...`,
           },
         ],
       };
