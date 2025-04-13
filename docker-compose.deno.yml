@@ -1,0 +1,31 @@
+services:
+  aws-s3-mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile.deno
+    environment:
+      - AWS_REGION=${AWS_REGION:-us-east-1}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - S3_BUCKETS=${S3_BUCKETS}
+      - S3_MAX_BUCKETS=${S3_MAX_BUCKETS:-5}
+      - AWS_ENDPOINT=${AWS_ENDPOINT}
+      - AWS_S3_FORCE_PATH_STYLE=${AWS_S3_FORCE_PATH_STYLE:-false}
+    # Allow CLI stdin interaction
+    stdin_open: true
+    tty: true
+    # Persist caching
+    volumes:
+      - deno-cache:/app/.deno-dir
+    # Entrypoint is defined in Dockerfile with all necessary permissions
+    # Ensure command matches what's specified in Dockerfile
+    command: ["src/index.ts"]
+    # Port for debugging or future web interface
+    ports:
+      - 3000:3000
+    # For robustness
+    restart: unless-stopped
+
+volumes:
+  deno-cache:
+    driver: local
