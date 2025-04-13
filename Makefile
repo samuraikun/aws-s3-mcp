@@ -4,7 +4,7 @@
 # Environment variables
 ENV_FILE := .env
 REQUIRED_ENV_VARS := AWS_REGION AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
-DOCKER_COMPOSE_DENO := docker-compose -f docker-compose.deno.yml
+DOCKER_COMPOSE := docker-compose
 CONTAINER_NAME := aws-s3-mcp-aws-s3-mcp-1
 
 # Check for required environment variables
@@ -74,14 +74,14 @@ docker-run: docker-build
 .PHONY: deno-build deno-start deno-stop deno-restart deno-logs deno-test deno-inspector
 
 deno-build:
-	docker build -t aws-s3-mcp-deno -f Dockerfile.deno .
+	docker build -t aws-s3-mcp .
 
 deno-start: env-check
-	$(DOCKER_COMPOSE_DENO) up -d --build
+	$(DOCKER_COMPOSE) up -d --build
 	@echo "Deno S3 MCP server started in Docker container"
 
 deno-stop:
-	$(DOCKER_COMPOSE_DENO) down
+	$(DOCKER_COMPOSE) down
 	@echo "Deno S3 MCP server stopped"
 
 deno-restart: deno-stop deno-start
@@ -92,7 +92,7 @@ deno-logs:
 deno-test:
 	@if ! docker ps | grep -q "$(CONTAINER_NAME)"; then \
 		echo "Starting container for tests..."; \
-		$(DOCKER_COMPOSE_DENO) up -d; \
+		$(DOCKER_COMPOSE) up -d; \
 		sleep 2; \
 	fi
 	@echo "Running Deno tests..."
@@ -105,7 +105,7 @@ deno-test:
 deno-inspector: env-check
 	@if ! docker ps | grep -q "$(CONTAINER_NAME)"; then \
 		echo "Starting Deno S3 MCP server with docker-compose..."; \
-		$(DOCKER_COMPOSE_DENO) up -d --build; \
+		$(DOCKER_COMPOSE) up -d --build; \
 		sleep 2; \
 		if ! docker ps | grep -q "$(CONTAINER_NAME)"; then \
 			echo "ERROR: Deno S3 MCP server failed to start."; \

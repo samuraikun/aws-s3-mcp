@@ -10,19 +10,13 @@ if [ ! -f .env ]; then
   exit 1
 fi
 
-# Check if Dockerfile.deno exists
-if [ ! -f Dockerfile.deno ]; then
-  echo "ERROR: Dockerfile.deno not found. Please make sure it exists in the current directory."
-  exit 1
-fi
-
 # Load environment variables from .env
 export $(grep -v '^#' .env | xargs)
 
 # Build the Docker image if it doesn't exist or rebuild is requested
-if [[ "$1" == "--rebuild" ]] || ! docker images | grep -q "aws-s3-mcp-deno"; then
-  echo "Building Deno Docker image for S3 MCP server..."
-  docker build -t aws-s3-mcp-deno -f Dockerfile.deno .
+if [[ "$1" == "--rebuild" ]] || ! docker images | grep -q "aws-s3-mcp"; then
+  echo "Building Docker image for S3 MCP server..."
+  docker build -t aws-s3-mcp .
 fi
 
 # docker-compose will automatically manage the network
@@ -31,10 +25,10 @@ fi
 echo "Starting Deno S3 MCP server with docker-compose..."
 
 # Stop existing containers if they exist
-docker-compose -f docker-compose.deno.yml down
+docker-compose down
 
 # Start the container
-docker-compose -f docker-compose.deno.yml up -d --build
+docker-compose up -d --build
 
 # Container name is based on docker-compose naming structure
 CONTAINER_NAME="aws-s3-mcp-aws-s3-mcp-1"
@@ -63,7 +57,7 @@ npx @modelcontextprotocol/inspector docker exec -i $CONTAINER_NAME deno run --al
 
 # When the user exits the inspector, clean up
 echo "Cleaning up..."
-docker-compose -f docker-compose.deno.yml down
+docker-compose down
 
 echo "Done! MCP Inspector session ended."
 exit 0
