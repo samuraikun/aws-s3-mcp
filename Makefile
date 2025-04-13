@@ -90,16 +90,7 @@ deno-logs:
 	docker logs $(CONTAINER_NAME)
 
 deno-test:
-	@if ! docker ps | grep -q "$(CONTAINER_NAME)"; then \
-		echo "Starting container for tests..."; \
-		$(DOCKER_COMPOSE) up -d; \
-		sleep 2; \
-	fi
-	@echo "Running Deno tests..."
-	@echo "================================================================================"
-	docker exec -i $(CONTAINER_NAME) deno test --allow-net --allow-env --allow-read --allow-sys /app/test/deno/
-	@echo "================================================================================"
-	@echo "Tests completed"
+	deno test -A test/deno
 
 # MCP Inspector with Deno
 deno-inspector: env-check
@@ -147,8 +138,7 @@ help:
 	@echo "  make deno-stop          - Stop Deno Docker container"
 	@echo "  make deno-restart       - Restart Deno Docker container"
 	@echo "  make deno-logs          - View Deno container logs"
-	@echo "  make deno-test          - Run Node.js tests with Deno compatibility layer"
-	@echo "  make deno-native-test   - Run Deno native tests"
+	@echo "  make deno-test          - Run tests with Deno compatibility layer"
 	@echo "  make deno-inspector     - Run MCP Inspector with Deno Docker"
 	@echo "  make deno-inspector-cleanup - Cleanup after Inspector"
 	@echo ""
