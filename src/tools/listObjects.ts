@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { createErrorResponse } from "../helpers/createErrorResponse.js";
-import type { S3Resource } from "../resources/s3.js";
-import type { IMCPTool, InferZodParams } from "../types.js";
+import { createErrorResponse } from "../helpers/createErrorResponse.ts";
+import type { S3Resource } from "../resources/s3.ts";
+import type { IMCPTool, InferZodParams } from "../types.ts";
 
 /**
  * List objects in an S3 bucket

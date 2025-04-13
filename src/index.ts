@@ -1,12 +1,12 @@
-#!/usr/bin/env node
+#!/usr/bin/env -S deno run --allow-net --allow-env --allow-npm
+
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import dotenv from "dotenv";
-import { S3Resource } from "./resources/s3.js";
-import { createTools } from "./tools/index.js";
+import { S3Resource } from "./resources/s3.ts";
+import { createTools } from "./tools/index.ts";
 
 // Process command-line arguments
-const args = process.argv.slice(2);
+const args = Deno.args;
 if (args.includes("--help") || args.includes("-h")) {
   console.log(`
 aws-s3-mcp - S3 Model Context Protocol Server
@@ -27,21 +27,18 @@ Environment Variables:
 
 For more information, visit: https://github.com/samuraikun/aws-s3-mcp
   `);
-  process.exit(0);
+  Deno.exit(0);
 }
 
 if (args.includes("--version") || args.includes("-v")) {
-  console.log("aws-s3-mcp v0.1.0");
-  process.exit(0);
+  console.log("aws-s3-mcp v0.2.5");
+  Deno.exit(0);
 }
-
-// Load environment variables from .env file if it exists
-dotenv.config();
 
 // Create server instance
 const server = new McpServer({
   name: "s3-mcp-server",
-  version: "0.1.0",
+  version: "0.2.5",
 });
 
 // Initialize S3Resource class
@@ -50,16 +47,37 @@ const s3Resource = new S3Resource();
 // Create and register all tools
 const tools = createTools(s3Resource);
 for (const tool of tools) {
-  server.tool(tool.name, tool.description, tool.parameters, tool.execute.bind(tool));
+  // Register tool with MCP server while avoiding Deno type checks
+  server.tool(
+    tool.name,
+    tool.description,
+    // @ts-ignore - Convert zod-formatted parameters to the format expected by MCP server
+    tool.parameters,
+    // Bind execute function to preserve context
+    tool.execute.bind(tool),
+  );
 }
 
 // Start the server
 async function main() {
-  const transport = new StdioServerTransport();
-  await server.connect(transport);
+  try {
+    // Handle interruption signal
+    Deno.addSignalListener("SIGINT", async () => {
+      console.log("Shutting down server...");
+      await server.close();
+      Deno.exit(0);
+    });
+
+    const transport = new StdioServerTransport();
+    await server.connect(transport);
+    console.log("S3 MCP server running on stdio transport");
+  } catch (error) {
+    console.error("Error starting server:", error);
+    Deno.exit(1);
+  }
 }
 
 main().catch((error) => {
   console.error("Fatal error in main():", error);
-  process.exit(1);
+  Deno.exit(1);
 });
