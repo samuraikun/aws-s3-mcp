@@ -142,8 +142,19 @@ export class S3Resource {
       const response = await this.client.send(command);
       const contentType = response.ContentType || "application/octet-stream";
 
-      // Handle the response body
-      const bodyContents = await response.Body?.transformToByteArray();
+      // Handle the response body based on environment (Node.js vs Deno)
+      let bodyContents: Uint8Array;
+
+      if (response.Body?.transformToByteArray) {
+        // Deno environment
+        bodyContents = await response.Body.transformToByteArray();
+      } else if (response.Body && this.isNodeJsReadableStream(response.Body)) {
+        // Node.js environment (stream)
+        bodyContents = await this.streamToBuffer(response.Body as any);
+      } else {
+        throw new Error("Unexpected response body type");
+      }
+
       if (!bodyContents) {
         throw new Error("Empty response body");
       }
@@ -161,10 +172,22 @@ export class S3Resource {
           data: await this.convertPdfToText(bodyContents),
           contentType,
         }))
-        .otherwise(() => ({
-          data: bodyContents,
-          contentType,
-        }));
+        .otherwise(() => {
+          // For binary data, convert to Buffer if we're in Node.js environment
+          const isNodeEnvironment =
+            typeof process !== "undefined" && process.versions && process.versions.node;
+
+          // Use Buffer only in Node.js environment
+          const data = isNodeEnvironment
+            ? // @ts-ignore: Node.js Buffer
+              Buffer.from(bodyContents)
+            : bodyContents;
+
+          return {
+            data,
+            contentType,
+          };
+        });
     } catch (error) {
       this.logError(`Error getting object ${key} from bucket ${bucketName}:`, error);
       throw error;
@@ -241,5 +264,53 @@ export class S3Resource {
       this.logError("Error converting PDF to text:", error);
       return "Error: Could not extract text from PDF file.";
     }
+  }
+
+  // Helper method to check if an object is a Node.js Readable stream
+  private isNodeJsReadableStream(obj: unknown): boolean {
+    return (
+      obj !== null &&
+      typeof obj === "object" &&
+      // Check for common stream properties
+
+      // @ts-ignore: Node.js stream specific properties
+      (typeof obj.pipe === "function" ||
+        // @ts-ignore: Node.js stream specific properties
+        typeof obj.on === "function" ||
+        // @ts-ignore: Node.js stream specific properties
+        typeof obj.read === "function")
+    );
+  }
+
+  // Helper method to convert a Node.js stream to a buffer
+  private async streamToBuffer(stream: any): Promise<Uint8Array> {
+    return new Promise((resolve, reject) => {
+      const chunks: Array<Uint8Array> = [];
+
+      // @ts-ignore: Node.js stream methods
+      stream.on("data", (chunk: Uint8Array) => {
+        chunks.push(chunk);
+      });
+
+      // @ts-ignore: Node.js stream methods
+      stream.on("error", (err: Error) => {
+        reject(err);
+      });
+
+      // @ts-ignore: Node.js stream methods
+      stream.on("end", () => {
+        // Combine chunks into a single Uint8Array
+        const totalLength = chunks.reduce((acc, chunk) => acc + chunk.length, 0);
+        const result = new Uint8Array(totalLength);
+
+        let offset = 0;
+        for (const chunk of chunks) {
+          result.set(chunk, offset);
+          offset += chunk.length;
+        }
+
+        resolve(result);
+      });
+    });
   }
 }
