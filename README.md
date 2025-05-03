@@ -1,3 +1,5 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/samuraikun-aws-s3-mcp-badge.png)](https://mseep.ai/app/samuraikun-aws-s3-mcp)
+
 # S3 MCP Server
 
 [![CI](https://img.shields.io/github/actions/workflow/status/samuraikun/aws-s3-mcp/test.yml?branch=main&style=flat-square&logo=github&label=tests)](https://github.com/samuraikun/aws-s3-mcp/actions/workflows/test.yml)
