@@ -21,14 +21,6 @@ export class S3Resource {
       region: process.env.AWS_REGION || region,
     };
 
-    // Set credentials if provided in environment variables
-    if (process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY) {
-      clientOptions.credentials = {
-        accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-      };
-    }
-
     // Custom endpoint configuration for MinIO
     if (process.env.AWS_ENDPOINT) {
       clientOptions.endpoint = process.env.AWS_ENDPOINT;
